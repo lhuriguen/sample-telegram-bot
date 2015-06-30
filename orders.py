@@ -10,13 +10,6 @@ TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 BASE_URL = 'https://api.telegram.org/bot' + TOKEN + '/'
 
 
-class Resource(object):
-
-    def on_get(self, req, resp):
-        resp.body = '{"message": "Hello world!"}'
-        resp.status = falcon.HTTP_200
-
-
 class GetMeResource(object):
 
     def on_get(self, req, resp):
@@ -38,6 +31,17 @@ class SetWebhookResource(object):
 
 class WebhookResource(object):
 
+    def send_message(self, chat_id, text, reply_id):
+        if not text:
+            logging.error('no text specified')
+            return
+        params = {'chat_id': str(chat_id),
+                  'text': text.encode('utf-8'),
+                  'reply_to_message_id': str(reply_id), }
+        result = requests.get(BASE_URL + 'sendMessage', params=params)
+        # Log the contents of the response.
+        logging.info(result.text)
+
     def on_post(self, req, resp):
         if req.content_length in (None, 0):
             # Nothing to do
@@ -49,9 +53,6 @@ class WebhookResource(object):
             raise falcon.HTTPBadRequest('Empty request body',
                                         'A valid JSON document is required.')
 
-        logging.info('request body:')
-        logging.info(body)
-
         try:
             content = json.loads(body.decode('utf-8'))
 
@@ -62,12 +63,16 @@ class WebhookResource(object):
                                    'JSON was incorrect or not encoded as '
                                    'UTF-8.')
 
-        update_id = content.get('update_id')
-        message = content.get('message')
+        # Log the contents of the request.
+        logging.info(content)
+
+        update_id = content['update_id']
+        message = content['message']
         message_id = message.get('message_id')
         date = message.get('date')
         text = message.get('text')
-        user_from = message.get('from')
+        fr = message.get('from')
+        sender = fr.get('first_name', 'stranger')
         chat = message['chat']
         chat_id = chat['id']
 
@@ -75,4 +80,7 @@ class WebhookResource(object):
             logging.info('no text')
             return
 
-        resp.body = json.dumps({'message': text})
+        if text.startswith('/'):
+            if text == '/hello':
+                self.send_message(
+                    chat_id, 'Hello {0}'.format(sender), message_id)
