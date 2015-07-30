@@ -5,6 +5,8 @@ import os
 import falcon
 import requests
 
+from weather import get_weather
+
 
 TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 BASE_URL = 'https://api.telegram.org/bot' + TOKEN + '/'
@@ -76,6 +78,24 @@ class WebhookResource(object):
         chat = message['chat']
         chat_id = chat['id']
 
+        if 'location' in message:
+            # Get the user's location.
+            latitude = message.get('location')['latitude']
+            longitude = message.get('location')['longitude']
+            logging.info("Location: {}, {}".format(latitude, longitude))
+            w = get_weather(latitude, longitude)
+            if w:
+                text = ('{}\nTemperature: {} ºC\n'
+                        'Humidity: {}%\nPressure: {} hPa').format(
+                        w.description, w.temperature, w.humidity, w.pressure)
+                self.send_message(chat_id, text, message_id)
+            else:
+                self.send_message(
+                    chat_id,
+                    'I cannot find weather information for that location.',
+                    message_id)
+            return
+
         if not text:
             logging.info('no text')
             return
@@ -84,3 +104,6 @@ class WebhookResource(object):
             if text == '/hello':
                 self.send_message(
                     chat_id, 'Hello {0}'.format(sender), message_id)
+            elif text == '/weather':
+                self.send_message(
+                    chat_id, 'Please share your location with me!', message_id)
